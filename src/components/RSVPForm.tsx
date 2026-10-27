@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle, Loader2, Heart, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
+import { submitRsvp } from '../lib/sheets';
 
-export const RSVPForm: React.FC = () => {
-  const [formData, setFormData] = useState({
-    fullName: '',
-    guests: '1',
-    dietaryNotes: '',
-  });
+const emptyForm = (fullName = '') => ({
+  fullName,
+  attendance: 'Attending',
+  guests: '1',
+  dietaryNotes: '',
+});
+
+export const RSVPForm: React.FC<{ guestName?: string }> = ({ guestName = '' }) => {
+  const [formData, setFormData] = useState(() => emptyForm(guestName));
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -15,19 +20,25 @@ export const RSVPForm: React.FC = () => {
     setStatus('loading');
 
     try {
-      // Simulate network request latency
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await submitRsvp({
+        name: formData.fullName,
+        attendance: formData.attendance,
+        guests: formData.attendance === 'Attending' ? formData.guests : '0',
+        dietaryNotes: formData.dietaryNotes,
+        invitedAs: guestName,
+      });
 
       setStatus('success');
-      setFormData({ fullName: '', guests: '1', dietaryNotes: '' });
+      setFormData(emptyForm(guestName));
     } catch (error) {
       console.error('Error sending RSVP: ', error);
       setStatus('error');
+      toast.error('Could not send your RSVP. Please try again.');
     }
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-6 relative py-10">
+    <div className="max-w-5xl mx-auto px-6 relative py-4">
       {/* Premium ambient backdrop & glows */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-gradient-radial from-brand-gold/15 to-transparent rounded-full blur-[100px] pointer-events-none -z-10" />
 
@@ -36,7 +47,7 @@ export const RSVPForm: React.FC = () => {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
         transition={{ duration: 1, ease: "easeOut" }}
-        className="glass p-10 sm:p-14 lg:p-16 rounded-[3rem] border border-white/40 shadow-[0_30px_60px_rgba(197,160,89,0.1)] relative overflow-hidden bg-white/60 backdrop-blur-3xl lg:flex items-center gap-16"
+        className="glass p-8 sm:p-10 lg:p-12 rounded-[3rem] border border-white/40 shadow-[0_30px_60px_rgba(197,160,89,0.1)] relative overflow-hidden bg-white/60 backdrop-blur-3xl lg:flex items-center gap-16"
       >
         {/* Soft top border line */}
         <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-brand-champagne via-brand-mocha/80 to-brand-champagne" />
@@ -110,6 +121,30 @@ export const RSVPForm: React.FC = () => {
                 </div>
 
                 <div>
+                  <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-brand-sand mb-3 ml-2">Will You Attend?</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { value: 'Attending', label: 'Joyfully Accept' },
+                      { value: 'Not Attending', label: 'Regretfully Decline' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, attendance: opt.value })}
+                        className={`px-4 py-3 rounded-full border font-serif italic text-base transition-all duration-300 ${
+                          formData.attendance === opt.value
+                            ? 'bg-brand-mocha text-brand-champagne border-brand-mocha shadow-md'
+                            : 'bg-white/80 text-brand-mocha border-stone-200/60 hover:border-brand-gold/60'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {formData.attendance === 'Attending' && (
+                <div>
                   <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-brand-sand mb-3 ml-2">Number of Guests</label>
                   <div className="relative group">
                     <select
@@ -121,12 +156,15 @@ export const RSVPForm: React.FC = () => {
                       <option value="2">We are coming! (2 Guests)</option>
                       <option value="3">3 Guests</option>
                       <option value="4">4 Guests</option>
+                      <option value="5">5 Guests</option>
+                      <option value="6">6 Guests</option>
                     </select>
                     <div className="absolute right-6 top-1/2 -translate-y-1/2 pointer-events-none text-brand-mocha transition-transform duration-300 group-hover:scale-110">
                       <Heart className="w-5 h-5 fill-brand-gold/30 drop-shadow-sm" />
                     </div>
                   </div>
                 </div>
+                )}
 
                 <div>
                   <label className="block text-[10px] uppercase tracking-[0.2em] font-bold text-brand-sand mb-3 ml-2">Dietary Notes (Optional)</label>
@@ -147,7 +185,7 @@ export const RSVPForm: React.FC = () => {
                     {status === 'loading' ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
                     ) : (
-                      'Confirm Attendance'
+                      'Send Response'
                     )}
                   </button>
                 </div>

@@ -1,111 +1,163 @@
-const SPREADSHEET_ID = '1jMa12xeTFbfdR5s3NAnYyQT8izPZ-8GAx82X_5i04EE';
+/**
+ * Sewmi & Shan – Wedding RSVP + Wishes backend (Google Apps Script)
+ *
+ * Paste this whole file into Extensions > Apps Script of the spreadsheet,
+ * run `setup` once (to authorize and create the tabs), then Deploy as a Web app.
+ * Sheets and headers are created automatically if they are missing.
+ */
+
+const SPREADSHEET_ID = '1PXOB-E5YvSNcHAQYP50KvVqof-FPz0qjGRxw01mcum4';
+const TIME_ZONE = 'Asia/Colombo';
+
+const SHEETS = {
+  RSVP: {
+    name: 'RSVP',
+    headers: ['Timestamp', 'Name', 'Attendance', 'Guests', 'Dietary Notes', 'Invited As'],
+    widths: [170, 220, 130, 80, 300, 200],
+  },
+  WISHES: {
+    name: 'Wishes',
+    // Untick "Show On Website" to hide a wish from the site.
+    headers: ['Timestamp', 'Name', 'Message', 'Invited As', 'Show On Website'],
+    widths: [170, 200, 420, 200, 130],
+  },
+};
+
+const MAX_LEN = { name: 100, message: 1000, notes: 500 };
+
+/* ---------------------------------- Entry points ---------------------------------- */
 
 function doPost(e) {
+  const lock = LockService.getScriptLock();
   try {
-    const payload = parsePayload_(e);
-    const sheetKey = String(payload.sheet || '').toUpperCase();
+    lock.waitLock(10000);
+    const p = parsePayload_(e);
+    const action = String(p.action || p.sheet || '').toLowerCase();
 
-    if (sheetKey !== 'RSVP' && sheetKey !== 'WISH') {
-      return jsonResponse_({ ok: false, error: 'Invalid sheet. Use RSVP or WISH.' });
-    }
+    if (action === 'rsvp') {
+      const name = clean_(p.name, MAX_LEN.name);
+      if (!name) return json_({ ok: false, error: 'Name is required.' });
 
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = getOrCreateSheet_(ss, sheetKey);
-
-    if (sheetKey === 'RSVP') {
-      ensureHeaders_(sheet, ['Timestamp', 'Name', 'Phone', 'Guests', 'Attendance', 'DietaryRestrictions']);
+      const sheet = getSheet_(SHEETS.RSVP);
       sheet.appendRow([
         new Date(),
-        payload.name || '',
-        payload.phone || payload.email || '',
-        payload.guests || '',
-        payload.attendance || '',
-        payload.dietaryRestrictions || '',
+        name,
+        clean_(p.attendance, 30) || 'Attending',
+        Number(p.guests) || 1,
+        clean_(p.dietaryNotes, MAX_LEN.notes),
+        clean_(p.invitedAs, MAX_LEN.name),
       ]);
-    } else {
-      ensureHeaders_(sheet, ['Timestamp', 'Name', 'Message']);
-      sheet.appendRow([
-        new Date(),
-        payload.name || '',
-        payload.message || '',
-      ]);
+      return json_({ ok: true });
     }
 
-    return jsonResponse_({ ok: true });
-  } catch (error) {
-    return jsonResponse_({
-      ok: false,
-      error: String(error && error.message ? error.message : error),
-    });
+    if (action === 'wish' || action === 'wishes') {
+      const name = clean_(p.name, MAX_LEN.name);
+      const message = clean_(p.message, MAX_LEN.message);
+      if (!name || !message) return json_({ ok: false, error: 'Name and message are required.' });
+
+      const sheet = getSheet_(SHEETS.WISHES);
+      sheet.appendRow([new Date(), name, message, clean_(p.invitedAs, MAX_LEN.name), true]);
+      sheet.getRange(sheet.getLastRow(), 5).insertCheckboxes().check();
+      return json_({ ok: true });
+    }
+
+    return json_({ ok: false, error: 'Unknown action. Use "rsvp" or "wish".' });
+  } catch (err) {
+    return json_({ ok: false, error: String(err && err.message ? err.message : err) });
+  } finally {
+    lock.releaseLock();
   }
 }
 
-function doGet() {
-  return jsonResponse_({
-    ok: true,
-    message: 'Wedding form endpoint is running.',
-  });
-}
-
-function parsePayload_(e) {
-  const params = e && e.parameter ? e.parameter : {};
-
-  if (Object.keys(params).length > 0) {
-    return params;
-  }
-
-  const contents = e && e.postData && e.postData.contents ? e.postData.contents : '';
-  if (!contents) {
-    return {};
-  }
-
-  if (contents.indexOf('=') !== -1 && contents.indexOf('{') !== 0) {
-    return parseQueryString_(contents);
-  }
-
+function doGet(e) {
   try {
-    return JSON.parse(contents);
-  } catch (_error) {
-    return {};
+    const action = String((e && e.parameter && e.parameter.action) || '').toLowerCase();
+    if (action === 'wishes') {
+      return json_({ ok: true, data: readWishes_() });
+    }
+    return json_({ ok: true, message: 'Sewmi & Shan wedding endpoint is running.' });
+  } catch (err) {
+    return json_({ ok: false, error: String(err && err.message ? err.message : err) });
   }
 }
 
-function parseQueryString_(query) {
-  const out = {};
-  const pairs = String(query).split('&');
-
-  for (let i = 0; i < pairs.length; i++) {
-    const part = pairs[i];
-    if (!part) continue;
-
-    const idx = part.indexOf('=');
-    const rawKey = idx >= 0 ? part.slice(0, idx) : part;
-    const rawValue = idx >= 0 ? part.slice(idx + 1) : '';
-    const key = decodeURIComponent(rawKey.replace(/\+/g, ' '));
-    const value = decodeURIComponent(rawValue.replace(/\+/g, ' '));
-
-    out[key] = value;
-  }
-
-  return out;
+/** Run once from the editor to authorize the script and create both tabs. */
+function setup() {
+  getSheet_(SHEETS.RSVP);
+  getSheet_(SHEETS.WISHES);
+  SpreadsheetApp.openById(SPREADSHEET_ID).setSpreadsheetTimeZone(TIME_ZONE);
 }
 
-function getOrCreateSheet_(ss, name) {
-  let sheet = ss.getSheetByName(name);
-  if (!sheet) {
-    sheet = ss.insertSheet(name);
+/* ------------------------------------ Helpers ------------------------------------ */
+
+function readWishes_() {
+  const sheet = getSheet_(SHEETS.WISHES);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  const rows = sheet.getRange(2, 1, lastRow - 1, SHEETS.WISHES.headers.length).getValues();
+  return rows
+    .filter(function (r) { return r[1] && r[2] && r[4] !== false; })
+    .map(function (r) {
+      return {
+        name: String(r[1]),
+        message: String(r[2]),
+        createdAt: r[0] instanceof Date ? r[0].toISOString() : String(r[0]),
+      };
+    })
+    .reverse(); // newest first
+}
+
+/** Returns the sheet, creating it and/or its header row when missing. */
+function getSheet_(def) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(def.name);
+  if (!sheet) sheet = ss.insertSheet(def.name);
+
+  const width = def.headers.length;
+  const current = sheet.getRange(1, 1, 1, width).getValues()[0];
+  const hasHeaders = def.headers.every(function (h, i) { return current[i] === h; });
+
+  if (!hasHeaders) {
+    if (sheet.getLastRow() > 0 && current.some(function (c) { return c !== ''; })) {
+      sheet.insertRowBefore(1); // keep any existing data below the new header
+    }
+    sheet.getRange(1, 1, 1, width)
+      .setValues([def.headers])
+      .setFontWeight('bold')
+      .setFontColor('#fcf8ee')
+      .setBackground('#061e14')
+      .setHorizontalAlignment('center')
+      .setVerticalAlignment('middle');
+    sheet.setRowHeight(1, 34);
+    sheet.setFrozenRows(1);
+    def.widths.forEach(function (w, i) { sheet.setColumnWidth(i + 1, w); });
+    sheet.getRange(2, 1, sheet.getMaxRows() - 1, 1).setNumberFormat('yyyy-mm-dd hh:mm');
+    sheet.getRange(2, 1, sheet.getMaxRows() - 1, width).setWrap(true).setVerticalAlignment('top');
   }
   return sheet;
 }
 
-function ensureHeaders_(sheet, headers) {
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(headers);
+function parsePayload_(e) {
+  const params = (e && e.parameter) || {};
+  if (Object.keys(params).length > 0) return params;
+
+  const body = (e && e.postData && e.postData.contents) || '';
+  if (!body) return {};
+  try {
+    return JSON.parse(body);
+  } catch (_err) {
+    return {};
   }
 }
 
-function jsonResponse_(data) {
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
+/** Trims, limits length and neutralises spreadsheet formula injection. */
+function clean_(value, maxLen) {
+  let s = String(value == null ? '' : value).trim().slice(0, maxLen);
+  if (/^[=+\-@]/.test(s)) s = "'" + s;
+  return s;
+}
+
+function json_(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }

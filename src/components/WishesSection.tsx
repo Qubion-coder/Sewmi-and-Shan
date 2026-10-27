@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Send, Loader2, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
+import { fetchWishes, submitWish } from '../lib/sheets';
 
 interface Wish {
   id: string;
@@ -19,10 +21,25 @@ const getRelativeTime = (date: Date) => {
   return `${Math.floor(hours / 24)}d ago`;
 };
 
-export const WishesSection: React.FC = () => {
+export const WishesSection: React.FC<{ guestName?: string }> = ({ guestName = '' }) => {
   const [wishes, setWishes] = useState<Wish[]>([]);
-  const [formData, setFormData] = useState({ name: '', message: '' });
+  const [formData, setFormData] = useState({ name: guestName, message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchWishes()
+      .then((rows) =>
+        setWishes(
+          rows.map((row, i) => ({
+            id: `${row.createdAt}-${i}`,
+            name: row.name,
+            message: row.message,
+            createdAt: new Date(row.createdAt),
+          })),
+        ),
+      )
+      .catch((error) => console.error('Error loading wishes: ', error));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,8 +47,7 @@ export const WishesSection: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      // Simulate network request latency
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await submitWish({ name: formData.name, message: formData.message, invitedAs: guestName });
 
       const newWish: Wish = {
         id: Date.now().toString(),
@@ -42,9 +58,11 @@ export const WishesSection: React.FC = () => {
       
       // Prepend the new wish to the list
       setWishes(prev => [newWish, ...prev]);
-      setFormData({ name: '', message: '' });
+      setFormData({ name: guestName, message: '' });
+      toast.success('Your beautiful blessing has been shared!');
     } catch (error) {
       console.error('Error submitting wish: ', error);
+      toast.error('Could not send your wishes. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
