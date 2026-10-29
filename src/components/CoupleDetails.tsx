@@ -46,41 +46,21 @@ export const CoupleDetails: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Center Couple Image (Arch Design) */}
+        {/* Center Ampersand Medallion */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          whileInView={{ opacity: 1, scale: 1, y: 0 }}
+          initial={{ opacity: 0, scale: 0.9 }}
+          whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 1.2, ease: "easeOut" }}
-          className="relative px-4 sm:px-0 order-1 lg:order-2 flex-shrink-0 group"
+          className="relative order-3 lg:order-2 flex-shrink-0"
         >
-          {/* Glowing border effect */}
-          <div className="absolute -inset-2 bg-gradient-to-b from-brand-mocha/30 to-transparent rounded-[12rem_12rem_1rem_1rem] blur-xl opacity-60 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-
-          <div className="relative w-[300px] h-[400px] sm:w-[360px] sm:h-[500px] lg:w-[420px] lg:h-[580px] rounded-[12rem_12rem_16px_16px] overflow-hidden border-[6px] border-white/90 shadow-[0_20px_50px_rgba(197,160,89,0.2)] bg-brand-champagne mx-auto z-10 transition-transform duration-700 group-hover:-translate-y-2">
-            <img
-              src="/images/b.jpg"
-              onError={(e) => {
-                e.currentTarget.src = "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?auto=format&fit=crop&q=80&w=800&h=1000";
-                e.currentTarget.onerror = null;
-              }}
-              alt={`${wedding.brideName} and ${wedding.groomName}`}
-              className="w-full h-full object-cover scale-[1.2] lg:scale-[1.15] object-[center_30%] transition-transform duration-[1.5s] ease-out group-hover:scale-[1.25] lg:group-hover:scale-[1.2]"
-            />
-            {/* Elegant inner shadow & overlay */}
-            <div className="absolute inset-0 shadow-[inset_0_0_40px_rgba(0,0,0,0.1)] pointer-events-none" />
-            <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-brand-mocha/30 to-transparent pointer-events-none mix-blend-overlay" />
+          <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full border border-brand-gold/40 bg-white/70 shadow-[0_20px_50px_rgba(197,160,89,0.2)] flex items-center justify-center">
+            <div className="absolute inset-2 rounded-full border border-brand-gold/20" />
+            <span className="font-display italic font-light text-5xl sm:text-6xl text-brand-gold">&</span>
           </div>
-
-          {/* Floating Sparkles decoration */}
-          <Sparkles className="absolute top-8 left-0 w-8 h-8 text-brand-gold animate-pulse drop-shadow-sm z-20" />
-          <Sparkles className="absolute bottom-10 -right-4 w-6 h-6 text-brand-gold animate-pulse delay-300 drop-shadow-sm z-20" />
+          <Sparkles className="absolute -top-2 -left-2 w-6 h-6 text-brand-gold animate-pulse drop-shadow-sm" />
+          <Sparkles className="absolute -bottom-1 -right-3 w-5 h-5 text-brand-gold animate-pulse delay-300 drop-shadow-sm" />
         </motion.div>
-
-        {/* Mobile divider between image and groom */}
-        <div className="lg:hidden order-3 w-full flex justify-center py-4 opacity-50">
-          <div className="w-1/2 h-px bg-gradient-to-r from-transparent via-brand-mocha/40 to-transparent" />
-        </div>
 
         {/* Bride Details (Right) */}
         <motion.div
